@@ -74,7 +74,7 @@ a{color:var(--blue)}
 <div id="sheet" onclick="if(event.target===this)closeSheet()"><div id="sheetIn"></div></div>
 <div id="toast"></div>
 <script>
-var VERSION = 1;
+var VERSION = 2;
 var SB = 'https://cuscnpootgbzpawlbwgt.supabase.co';
 var KEY = 'sb_publishable_yYrOUI2OBp_Bn-AjIYZivA_AuBH9PtD';
 var TOKEN = '', S = null, TAB = 'clock', PREVIEW = null, BUSY = false, TICK = null;
@@ -117,7 +117,7 @@ function proj(id){for(var i=0;i<S.projects.length;i++)if(S.projects[i].id===id)r
 function fits(scope,ps){return ps==='both'||scope==='both'||scope===ps;}
 function actsFor(p){return S.activities.filter(function(a){return a.active&&fits(a.scope,p.scope);});}
 function projsFor(p,actId){return S.projects.filter(function(x){return x.active&&fits(x.scope,p.scope)&&(!x.activity_id||x.activity_id===actId);});}
-function what(e){var a=act(e.activity_id),p=proj(e.project_id);return (a?a.name:'?')+(p?' · '+p.name:'');}
+function what(e){var a=act(e.activity_id),p=proj(e.project_id);return a?a.name+(p?' · '+p.name:''):(p?p.name:'Work');}
 function forPill(f){return f==='dealag'?'<span class="pill amb">Deal Ag</span>':f==='ya'?'<span class="pill blue">Yield Advantage</span>':'';}
 function mine(pid){return S.entries.filter(function(e){return e.person_id===pid;});}
 function running(pid){var r=null;S.entries.forEach(function(e){if(e.person_id===pid&&!e.end_at)r=e;});return r;}
