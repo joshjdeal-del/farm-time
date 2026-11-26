@@ -74,7 +74,7 @@ a{color:var(--blue)}
 <div id="sheet" onclick="if(event.target===this)closeSheet()"><div id="sheetIn"></div></div>
 <div id="toast"></div>
 <script>
-var VERSION = 3;
+var VERSION = 4;
 var SB = 'https://cuscnpootgbzpawlbwgt.supabase.co';
 var KEY = 'sb_publishable_yYrOUI2OBp_Bn-AjIYZivA_AuBH9PtD';
 var TOKEN = '', S = null, TAB = 'clock', PREVIEW = null, BUSY = false, TICK = null;
@@ -276,7 +276,7 @@ function saveEntry(){
 function delEntry(id){if(!confirm('Delete this entry?'))return;act2('delete_entry',{p_id:id},'Deleted').then(closeSheet).catch(function(){});}
 
 function stubsCard(p){
-  var ss=S.stubs.filter(function(s){return s.person_id===p.id;});
+  var ss=S.stubs.filter(function(s){return s.person_id===p.id&&(!s.chk||s.chk.released_at);});
   return '<div class="card" data-k="'+(PREVIEW?'pv':'me')+'-stubs"><h2>Paystubs</h2>'+(ss.length?ss.map(function(s){return '<div class="row tap" onclick="stubGet(\''+s.id+'\')"><div class="f"><b>'+(s.pay_date?'Paid '+dlbl(s.pay_date):esc(s.filename))+'</b>'+(s.label?' <span class="mut sm">'+esc(s.label)+'</span>':'')+'<div class="mut sm">'+(s.period_from?dlbl(s.period_from)+' – '+dlbl(s.period_to):'')+'</div></div><span class="pill">Download</span></div>';}).join(''):'<div class="mut">No paystubs yet</div>')+'</div>';
 }
 function stubGet(id){toast('Getting paystub…');rpc('stub_get',{p_token:TOKEN,p_id:id}).then(function(r){
@@ -376,17 +376,22 @@ function vPeople(){
   var h='<div class="card"><h2>People <button class="s" onclick="personForm(\'\')">+ Add person</button></h2>'+S.people.map(function(p){
     return '<div class="row tap" onclick="personForm(\''+p.id+'\')"><div class="f"><b>'+esc(p.name)+'</b> '+(p.role==='admin'?'<span class="pill">owner</span>':'')+(p.active?'':' <span class="pill gray">inactive</span>')+' <span class="pill gray">'+(p.scope==='both'?'farm + office':p.scope)+'</span>'+
       '<div class="mut sm">'+(p.email?esc(p.email)+(p.email2?' or '+esc(p.email2):'')+(p.has_pw?' · password set':' · password not set yet'):'No email yet, can\'t sign in')+(p.devices?' · '+p.devices+' device'+(p.devices>1?'s':''):'')+'</div></div></div>';}).join('')+'</div>';
-  var un=S.stubs.filter(function(s){return !s.person_id;}),as=S.stubs.filter(function(s){return s.person_id;});
-  h+='<div class="card"><h2>Paystubs <button class="s" onclick="stubBulk()">+ Add several</button> <button class="s" onclick="stubForm()">+ Add one</button></h2>'+
-    (un.length?'<div class="sm" style="margin:6px 0"><b>'+un.length+' to assign.</b> Open one to check whose it is, then pick the person. Nobody else can see these until they are assigned.</div>'+un.map(function(s){return '<div class="row"><div class="f"><b class="tap" onclick="stubGet(\''+s.id+'\')" style="text-decoration:underline">'+esc(s.filename)+'</b><div style="display:grid;grid-template-columns:1.3fr 1fr;gap:8px;margin-top:6px"><select id="sa_p_'+s.id+'"><option value="">Assign to…</option>'+S.people.filter(function(p){return p.active;}).map(function(p){return '<option value="'+p.id+'">'+esc(p.name)+'</option>';}).join('')+'</select><input id="sa_d_'+s.id+'" type="date" value="'+(s.pay_date||'')+'" title="Pay date"></div></div><div><button class="s" onclick="stubAssign(\''+s.id+'\')">Save</button><br><button class="s" style="margin-top:6px" onclick="stubDel(\''+s.id+'\')">Remove</button></div></div>';}).join('')+'<hr style="border:0;border-top:1px solid var(--line,#ddd);margin:10px 0">':'')+
-    (as.length?as.map(function(s){return '<div class="row"><div class="f tap" onclick="stubGet(\''+s.id+'\')"><b>'+esc(person(s.person_id).name)+'</b> · '+(s.pay_date?'paid '+dlbl(s.pay_date):esc(s.filename))+'<div class="mut sm">'+(s.period_from?dlbl(s.period_from)+' – '+dlbl(s.period_to):'')+(s.label?' · '+esc(s.label):'')+'</div></div><div><button class="s" onclick="stubUnassign(\''+s.id+'\')">Move</button> <button class="s" onclick="stubDel(\''+s.id+'\')">Remove</button></div></div>';}).join(''):(un.length?'':'<div class="mut">None yet</div>'))+'<div class="mut sm" style="margin-top:8px">Each person sees only their own paystubs.</div></div>';
+  var un=S.stubs.filter(function(s){return !s.person_id;}),wt=S.stubs.filter(function(s){return s.person_id&&s.chk&&!s.chk.released_at;}),rl=S.stubs.filter(function(s){return s.person_id&&!(s.chk&&!s.chk.released_at);});
+  var hr='<hr style="border:0;border-top:1px solid var(--line);margin:12px 0 4px">';
+  h+='<div class="card"><h2>Paystubs <button class="s" onclick="stubBulk()">+ Add paystubs</button></h2>'+
+    (un.length?'<div class="sm" style="margin:6px 0"><b>1. Assign ('+un.length+')</b> · The app reads the name printed on each PDF and will not let it go to anyone else.</div>'+un.map(function(s){var c=s.chk||{},g=c.guess;
+      var note=!c.readable?'<span class="pill amb">name not readable</span> <span class="mut sm">Scan or photo. Open it and check the name yourself.</span>':g?'<span class="pill">reads as '+esc(person(g).name)+'</span>':c.found?'<span class="pill red">more than one name: '+esc(c.found)+'</span>':'<span class="pill red">no name on file matches</span>';
+      return '<div class="row"><div class="f"><b class="tap" onclick="stubGet(\''+s.id+'\')" style="text-decoration:underline">'+esc(s.filename)+'</b><div style="margin-top:4px">'+note+'</div><div style="display:grid;grid-template-columns:1.3fr 1fr;gap:8px;margin-top:6px"><select id="sa_p_'+s.id+'"><option value="">Assign to…</option>'+S.people.filter(function(p){return p.active;}).map(function(p){return '<option value="'+p.id+'"'+(g===p.id?' selected':'')+'>'+esc(p.name)+'</option>';}).join('')+'</select><input id="sa_d_'+s.id+'" type="date" value="'+(s.pay_date||'')+'" title="Pay date"></div></div><div><button class="s" onclick="stubAssign(\''+s.id+'\')">Assign</button><br><button class="s" style="margin-top:6px" onclick="stubDel(\''+s.id+'\')">Remove</button></div></div>';}).join('')+hr:'')+
+    (wt.length?'<div class="sm" style="margin:6px 0"><b>2. Check and release ('+wt.length+')</b> · Nobody can see these yet. Look over each name, then release. <button class="s" onclick="stubRelease(null)">Release all '+wt.length+'</button></div>'+wt.map(function(s){var c=s.chk;
+      return '<div class="row"><div class="f"><b>'+esc(person(s.person_id).name)+'</b> <span class="mut">gets</span> <b class="tap" onclick="stubGet(\''+s.id+'\')" style="text-decoration:underline">'+esc(s.filename)+'</b><div class="mut sm">'+(s.pay_date?'paid '+dlbl(s.pay_date)+' · ':'')+(c.checked==='name'?'name on the PDF matched':'<span style="color:var(--amb)">name checked by eye only</span>')+' · assigned by '+esc(person(c.assigned_by).name)+'</div></div><div><button class="s" onclick="stubRelease(\''+s.id+'\')">Release</button><br><button class="s" style="margin-top:6px" onclick="stubUnassign(\''+s.id+'\')">Take back</button></div></div>';}).join('')+hr:'')+
+    (rl.length?'<div class="sm" style="margin:6px 0"><b>Released</b></div>'+rl.map(function(s){var c=s.chk||{};return '<div class="row"><div class="f tap" onclick="stubGet(\''+s.id+'\')"><b>'+esc(person(s.person_id).name)+'</b> · '+(s.pay_date?'paid '+dlbl(s.pay_date):esc(s.filename))+'<div class="mut sm">'+(s.period_from?dlbl(s.period_from)+' – '+dlbl(s.period_to)+' · ':'')+(c.opened_at?'opened '+dlbl(ymd(c.opened_at))+' '+tm(c.opened_at)+(c.open_count>1?' ('+c.open_count+' times)':''):'not opened yet')+'</div></div><div><button class="s" onclick="stubUnassign(\''+s.id+'\')">Take back</button> <button class="s" onclick="stubDel(\''+s.id+'\')">Remove</button></div></div>';}).join(''):(un.length||wt.length?'':'<div class="mut">None yet</div>'))+'<div class="mut sm" style="margin-top:8px">Each person sees only their own released paystubs. Every assign, release, take-back and first open is in the change log on the Team tab.</div></div>';
   return h;
 }
 function personForm(id){
   var p=id?person(id):{name:'',email:'',email2:'',role:'worker',scope:'farm',active:true};
   sheet('<h3>'+(id?esc(p.name):'Add person')+'</h3><label>Name</label><input id="pf_n" value="'+esc(p.name)+'">'+
     '<label>Email they sign in with</label><input id="pf_e" type="email" autocapitalize="none" value="'+esc(p.email||'')+'"><label>Second email (optional, same password)</label><input id="pf_e2" type="email" autocapitalize="none" value="'+esc(p.email2||'')+'">'+
-    '<div class="mut sm" style="margin-top:4px">The first time they sign in, a code is emailed to them and they choose their own password. Changing the first email signs them out.</div>'+
+    (id?'<label>Name printed on their paystub</label><input id="pf_sn" value="'+esc(p.stub_name||'')+'" placeholder="First Last"><div class="mut sm" style="margin-top:4px">Used to check a paystub is theirs before it can be assigned. Separate other spellings with a comma.</div>':'')+'<div class="mut sm" style="margin-top:4px">The first time they sign in, a code is emailed to them and they choose their own password. Changing the first email signs them out.</div>'+
     '<div class="grid2"><div><label>Categories they see</label><select id="pf_s">'+[['farm','Farm'],['office','Office'],['both','Farm + office']].map(function(x){return '<option value="'+x[0]+'"'+(p.scope===x[0]?' selected':'')+'>'+x[1]+'</option>';}).join('')+'</select></div>'+
     '<div><label>Access</label><select id="pf_r"><option value="worker"'+(p.role!=='admin'?' selected':'')+'>Worker</option><option value="admin"'+(p.role==='admin'?' selected':'')+'>Owner (sees everyone)</option></select></div></div>'+
     '<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="pf_a" style="width:auto" '+(p.active?'checked':'')+'> Active (can sign in and clock in)</label>'+
@@ -394,24 +399,35 @@ function personForm(id){
     (id&&id!==S.me.id?'<button class="b alt" onclick="closeSheet();PREVIEW=\''+id+'\';window.scrollTo(0,0);render()">See what '+esc(p.name)+' sees</button>':'')+
     (id&&p.email?'<button class="b alt" onclick="pOut(\''+id+'\',false)">Sign out all their devices</button><button class="b alt" onclick="pOut(\''+id+'\',true)">Reset their password</button>':''));
 }
-function savePerson(id){act2('save_person',{p:{id:id,name:$('pf_n').value,email:$('pf_e').value,email2:$('pf_e2').value,scope:$('pf_s').value,role:$('pf_r').value,active:$('pf_a').checked}},'Saved').then(closeSheet).catch(function(){});}
+function savePerson(id){var sn=$('pf_sn')?$('pf_sn').value:null,old=id?(person(id).stub_name||''):'';act2('save_person',{p:{id:id,name:$('pf_n').value,email:$('pf_e').value,email2:$('pf_e2').value,scope:$('pf_s').value,role:$('pf_r').value,active:$('pf_a').checked}},'Saved').then(function(){if(id&&sn!==null&&sn.trim()!==old)return act2('person_stub_name',{p_id:id,p_name:sn},'Saved');}).then(closeSheet).catch(function(){});}
 function pOut(id,reset){if(!confirm(reset?'Reset '+person(id).name+'\'s password? They are signed out and get a new code by email next time.':'Sign '+person(id).name+' out of every device?'))return;
   act2('person_signout',{p_id:id,p_reset:reset},reset?'Password reset':'Signed out everywhere').then(closeSheet).catch(function(){});}
-function stubForm(){sheet('<h3>Add paystub</h3><label>Person</label><select id="sf_p">'+S.people.map(function(p){return '<option value="'+p.id+'">'+esc(p.name)+'</option>';}).join('')+'</select><label>Pay date</label><input id="sf_d" type="date"><div class="grid2"><div><label>Period from</label><input id="sf_f" type="date"></div><div><label>Period to</label><input id="sf_t" type="date"></div></div><label>Label (optional, like check number)</label><input id="sf_l"><label>PDF</label><input id="sf_file" type="file" accept="application/pdf,image/*"><button class="b" onclick="stubSave()">Upload</button>');}
-function stubSave(){var f=$('sf_file').files[0];if(!f)return alert('Pick the PDF');if(f.size>10e6)return alert('That file is too big (10 MB max)');
-  var rd=new FileReader();rd.onload=function(){var b64=String(rd.result).split(',')[1];
-    act2('stub_add',{p_meta:{person_id:$('sf_p').value,pay_date:$('sf_d').value,period_from:$('sf_f').value,period_to:$('sf_t').value,label:$('sf_l').value,filename:f.name,mime:f.type||'application/pdf'},p_data:b64},'Uploaded').then(closeSheet).catch(function(){});};rd.readAsDataURL(f);}
-function stubBulk(){sheet('<h3>Add several paystubs</h3><div class="mut sm">Pick all the PDFs at once. They land in a list here, and you assign each one to a person after.</div><label>Pay date for all of them (optional)</label><input id="sb_d" type="date"><label>PDFs</label><input id="sb_file" type="file" accept="application/pdf,image/*" multiple><div id="sb_msg" class="mut sm" style="margin:8px 0"></div><button class="b" id="sb_go" onclick="stubBulkSave()">Upload</button>');}
+var PDFJS='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+function pdfLib(){if(window.pdfjsLib)return Promise.resolve(window.pdfjsLib);if(pdfLib.p)return pdfLib.p;
+  pdfLib.p=new Promise(function(ok,no){var sc=document.createElement('script');sc.src=PDFJS+'pdf.min.js';sc.onload=function(){try{window.pdfjsLib.GlobalWorkerOptions.workerSrc=PDFJS+'pdf.worker.min.js';ok(window.pdfjsLib);}catch(e){no(e);}};sc.onerror=function(){pdfLib.p=null;no(new Error('pdf reader did not load'));};document.head.appendChild(sc);});return pdfLib.p;}
+function pdfText(buf){return pdfLib().then(function(L){return L.getDocument({data:new Uint8Array(buf)}).promise;}).then(function(doc){var out=[],n=Math.min(doc.numPages,6);
+  function pg(i){if(i>n)return out.join('\n');return doc.getPage(i).then(function(p){return p.getTextContent();}).then(function(tc){var y=null,line='';tc.items.forEach(function(it){var ty=it.transform?Math.round(it.transform[5]):0;if(y!==null&&Math.abs(ty-y)>2){out.push(line);line='';}y=ty;line+=(line?' ':'')+it.str;});out.push(line);return pg(i+1);});}
+  return pg(1);}).catch(function(){return '';});}
+function b64buf(buf){var u=new Uint8Array(buf),o='',i;for(i=0;i<u.length;i+=32768)o+=String.fromCharCode.apply(null,u.subarray(i,i+32768));return btoa(o);}
+function stubBulk(){sheet('<h3>Add paystubs</h3><div class="mut sm">Pick all the PDFs at once, one PDF per person. They land in a list here. Nobody sees a paystub until it is assigned and then released.</div><label>Pay date for all of them (optional, read from the PDF when it can be)</label><input id="sb_d" type="date"><label>PDFs</label><input id="sb_file" type="file" accept="application/pdf,image/*" multiple><div id="sb_msg" class="mut sm" style="margin:8px 0"></div><button class="b" id="sb_go" onclick="stubBulkSave()">Upload</button>');}
 function stubBulkSave(){var fs=Array.prototype.slice.call($('sb_file').files),d=$('sb_d').value;if(!fs.length)return alert('Pick the PDFs');
   var big=fs.filter(function(f){return f.size>10e6;});if(big.length)return alert(big[0].name+' is too big (10 MB max)');
   if(BUSY)return;BUSY=true;$('sb_go').disabled=true;var i=0,bad=[];
   function next(){if(i>=fs.length){BUSY=false;closeSheet();toast((fs.length-bad.length)+' uploaded');if(bad.length)alert('These did not upload: '+bad.join(', '));return refresh();}
-    var f=fs[i++];$('sb_msg').textContent='Uploading '+i+' of '+fs.length+': '+f.name;
+    var f=fs[i++];$('sb_msg').textContent='Reading and uploading '+i+' of '+fs.length+': '+f.name;
     var rd=new FileReader();rd.onerror=function(){bad.push(f.name);next();};
-    rd.onload=function(){rpc('stub_add',{p_token:TOKEN,p_meta:{person_id:'',pay_date:d,filename:f.name,mime:f.type||'application/pdf'},p_data:String(rd.result).split(',')[1]}).then(next,function(){bad.push(f.name);next();});};rd.readAsDataURL(f);}
+    rd.onload=function(){var buf=rd.result,b64=b64buf(buf),isPdf=/pdf/i.test(f.type)||/\.pdf$/i.test(f.name);
+      (isPdf?pdfText(buf.slice(0)):Promise.resolve('')).then(function(txt){return rpc('stub_add',{p_token:TOKEN,p_meta:{pay_date:d,filename:f.name,mime:f.type||'application/pdf',text:txt||''},p_data:b64});}).then(next,function(){bad.push(f.name);next();});};rd.readAsArrayBuffer(f);}
   next();}
-function stubAssign(id){var p=$('sa_p_'+id).value;if(!p)return alert('Pick the person');act2('stub_assign',{p_id:id,p_person:p,p_pay_date:$('sa_d_'+id).value||null},'Assigned').catch(function(){});}
-function stubUnassign(id){if(!confirm('Move this paystub back to the list to assign? The person will stop seeing it.'))return;act2('stub_assign',{p_id:id,p_person:null,p_pay_date:null},'Moved').catch(function(){});}
+function stubAssign(id,sure){var p=$('sa_p_'+id).value,d=$('sa_d_'+id).value||null;if(!p)return alert('Pick the person');if(BUSY)return;BUSY=true;
+  rpc('stub_assign',{p_token:TOKEN,p_id:id,p_person:p,p_pay_date:d,p_confirm:!!sure}).then(function(){BUSY=false;toast('Assigned. Release it when checked.');return refresh();},function(e){BUSY=false;
+    if(e.message==='NEEDCONFIRM'){if(confirm('The app could not read a name on this file, so it cannot check it for you.\n\nHave you opened it and seen that it is '+person(p).name+'\'s paystub?')){$('sa_p_'+id).value=p;stubAssign(id,true);}return;}
+    if(e.message!=='Signed out')alert(e.message);});}
+function stubRelease(id){var ids=id?[id]:S.stubs.filter(function(s){return s.person_id&&s.chk&&!s.chk.released_at;}).map(function(s){return s.id;});if(!ids.length)return;
+  var list=ids.map(function(x){var s=S.stubs.filter(function(q){return q.id===x;})[0];return person(s.person_id).name+'  ←  '+s.filename;}).join('\n');
+  if(!confirm('Release '+(ids.length===1?'this paystub':'these '+ids.length+' paystubs')+'? Each person will be able to open theirs.\n\n'+list))return;
+  act2('stub_release',{p_ids:ids},'Released').catch(function(){});}
+function stubUnassign(id){if(!confirm('Take this paystub back to the list to assign? The person will stop seeing it.'))return;act2('stub_assign',{p_id:id,p_person:null,p_pay_date:null},'Taken back').catch(function(){});}
 function stubDel(id){if(!confirm('Remove this paystub?'))return;act2('stub_delete',{p_id:id},'Removed').catch(function(){});}
 
 /* ---------- setup (owner) ---------- */
